@@ -46,6 +46,7 @@ h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute
 .num b{font-size:18px;display:block}
 .tag{font-size:11px;font-weight:800;color:#fff;background:var(--gk);border-radius:6px;padding:2px 6px;margin-left:6px;vertical-align:middle}
 .diff{font-size:12px;font-weight:700;border-radius:8px;padding:2px 6px;min-width:46px;text-align:center}
+.diff:empty{display:none}
 .diff.lo{background:var(--amber-bg);color:var(--amber)}
 .diff.hi{background:#dcfce7;color:#166534}
 .diff.ok{background:var(--line);color:var(--mute)}
@@ -80,6 +81,9 @@ td:first-child,th:first-child{text-align:left;font-weight:600}
 th{font-size:12px;color:var(--mute);text-transform:uppercase}
 .toast{position:fixed;left:50%;top:calc(12px + env(safe-area-inset-top));transform:translateX(-50%);background:#111;color:#fff;
   padding:10px 16px;border-radius:20px;font-weight:600;z-index:20;font-size:14px}
+.modal{position:fixed;inset:0;z-index:30;display:flex;align-items:flex-end}
+.modal .back{position:absolute;inset:0;background:rgba(0,0,0,.5)}
+.sheet{position:relative;width:100%;max-height:80vh;overflow:auto;background:var(--bg);border-radius:18px 18px 0 0;padding:12px 12px calc(16px + env(safe-area-inset-bottom))}
 .x{color:var(--red);font-weight:700;padding:10px}
 </style>
 </head>
@@ -110,6 +114,8 @@ let tab = 'game';
 let sel = null;            // selected player id during a game
 let undo = [];             // snapshots for current game
 let openId = null;         // expanded game in history
+let lateOpen = false;      // late-arrival sheet
+let injuredNext = null;    // {id,note}: field player to mark injured once a replacement is picked
 let setup = newSetup();
 function newSetup() { return { opp: '', halfMin: S.settings.halfMin, subMin: S.settings.subMin, st: {}, gk: null }; }
 
@@ -138,12 +144,12 @@ const avail = g => g.players.filter(id => !g.out.includes(id));
 function avgSecs(g, t) { const a = avail(g); return a.length ? a.reduce((x, id) => x + secs(g, id, t), 0) / a.length : 0; }
 
 function snap(g) {
-  undo.push(JSON.stringify({ onField: g.onField, gk: g.gk, ivs: g.ivs, out: g.out, lastSubAt: g.lastSubAt }));
+  undo.push(JSON.stringify({ onField: g.onField, gk: g.gk, ivs: g.ivs, out: g.out, injuries: g.injuries, lastSubAt: g.lastSubAt }));
   if (undo.length > 15) undo.shift();
 }
 function doUndo() {
   const g = S.current; if (!g || !undo.length) return;
-  Object.assign(g, JSON.parse(undo.pop())); sel = null; save(); render();
+  Object.assign(g, JSON.parse(undo.pop())); sel = null; injuredNext = null; save(); render();
 }
 
 /* ---------- game actions ---------- */
@@ -153,7 +159,7 @@ function kickoff() {
   S.settings.halfMin = +setup.halfMin || 25; S.settings.subMin = +setup.subMin || 8;
   const names = {}; S.roster.forEach(p => names[p.id] = p.name);
   const g = { id: uid(), date: Date.now(), opp: setup.opp.trim(), halfMin: S.settings.halfMin, subMin: S.settings.subMin,
-    names, players: ids, onField: field, gk: setup.gk, out: [], ivs: {}, phase: 'h1',
+    names, players: ids, onField: field, gk: setup.gk, out: [], injuries: [], arrived: {}, ivs: {}, phase: 'h1',
     accum: 0, startedAt: Date.now(), h1End: null, lastSubAt: 0 };
   field.forEach(id => openIv(g, id, 0, id === g.gk));
   S.current = g; undo = []; sel = null; setup = newSetup(); save(); render();
@@ -181,7 +187,8 @@ function swap(outId, inId) {
   const t = clock(g), idx = g.onField.indexOf(outId), wasGk = g.gk === outId;
   if (running(g)) { closeIv(g, outId, t); openIv(g, inId, t, wasGk); g.lastSubAt = t; }
   g.onField[idx] = inId; if (wasGk) g.gk = inId;
-  sel = null; save(); render();
+  if (injuredNext && injuredNext.id === outId) { markInjured(outId, injuredNext.note, true); }
+  injuredNext = null; sel = null; save(); render();
 }
 function makeGk(id) {
   const g = S.current; snap(g);
@@ -189,11 +196,31 @@ function makeGk(id) {
   if (running(g)) [old, id].forEach(p => { if (p) { closeIv(g, p, t); openIv(g, p, t, p === id); } });
   sel = null; save(); render();
 }
-function toggleOut(id) {
+const openInjury = (g, id) => (g.injuries || []).filter(i => i.id === id && i.backAt == null).pop();
+function markInjured(id, note, noSnap) {
+  const g = S.current; if (!noSnap) snap(g);
+  if (!g.injuries) g.injuries = [];
+  if (!g.out.includes(id)) g.out.push(id);
+  g.injuries.push({ id, at: clock(g), note: note || '', backAt: null });
+}
+function returnFromInjury(id) {
   const g = S.current; snap(g);
-  const i = g.out.indexOf(id); if (i >= 0) g.out.splice(i, 1); else g.out.push(id);
+  const inj = openInjury(g, id); if (inj) inj.backAt = clock(g);
+  g.out = g.out.filter(x => x !== id);
   sel = null; save(); render();
 }
+function addLate(id, name) {
+  const g = S.current;
+  if (!id) {
+    name = (name || '').trim(); if (!name) return;
+    id = uid(); S.roster.push({ id, name });
+  } else name = S.roster.find(p => p.id === id).name;
+  g.names[id] = name; g.players.push(id);
+  if (!g.arrived) g.arrived = {};
+  g.arrived[id] = clock(g);
+  lateOpen = false; save(); render(); toast(name + ' added to the bench');
+}
+
 function resetSubTimer() { const g = S.current; g.lastSubAt = clock(g); save(); render(); }
 
 /* ---------- rendering ---------- */
@@ -237,8 +264,10 @@ function setupView() {
 
 function playerRow(g, id, onField, t) {
   const isOut = g.out.includes(id);
-  const state = isOut ? 'Out (injured / unavailable)'
-    : `${onField ? 'on' : 'off'} for <span data-st="${id}"></span>`;
+  const inj = isOut ? openInjury(g, id) : null;
+  const late = g.arrived && g.arrived[id] ? ` · arrived ${fmt(g.arrived[id])}` : '';
+  const state = isOut ? `🩹 Injured · out <span data-os="${id}"></span>${inj && inj.note ? ' · ' + esc(inj.note) : ''}`
+    : `${onField ? 'on' : 'off'} for <span data-st="${id}"></span>${late}`;
   const gkSeen = (g.ivs[id] || []).some(iv => iv.gk);
   return `<div class="row ${sel === id ? 'sel' : ''} ${isOut ? 'out' : ''}" data-act="pick" data-id="${id}">
     <div class="name">${esc(g.names[id] || '?')}${g.gk === id && onField ? '<span class="tag">GK</span>' : ''}
@@ -264,8 +293,19 @@ function gameView() {
   ${g.onField.map(id => playerRow(g, id, true, t)).join('')}
   <h2>Bench <span>${b.length} · least time first</span></h2>
   ${b.map(id => playerRow(g, id, false, t)).join('') || '<div class="empty">No one on the bench</div>'}
-  ${o.length ? `<h2>Out</h2>${o.map(id => playerRow(g, id, false, t)).join('')}` : ''}
-  <div style="height:70px"></div>`;
+  <button class="btn sec" style="width:100%" data-act="lateOpen">＋ Late-arriving player</button>
+  ${o.length ? `<h2>Injured / out</h2>${o.map(id => playerRow(g, id, false, t)).join('')}` : ''}
+  <div style="height:70px"></div>${lateOpen ? lateSheet(g) : ''}`;
+}
+
+function lateSheet(g) {
+  const rest = S.roster.filter(p => !g.players.includes(p.id));
+  return `<div class="modal"><div class="back" data-act="lateClose"></div><div class="sheet">
+    <h2 style="margin-top:0">Late arrival</h2>
+    ${rest.map(p => `<button class="row" style="width:100%;text-align:left" data-act="lateAdd" data-id="${p.id}"><span class="name">${esc(p.name)}</span></button>`).join('')}
+    <div class="two" style="margin-top:6px"><input id="lateName" class="field" placeholder="Or a new player's name" autocapitalize="words" autocomplete="off" style="flex:3">
+    <button class="btn" style="flex:1;margin-bottom:8px" data-act="lateNew">Add</button></div>
+    <button class="btn sec" style="width:100%" data-act="lateClose">Cancel</button></div></div>`;
 }
 
 function isDue(g, t) { return running(g) && t - g.lastSubAt >= g.subMin * 60; }
@@ -281,9 +321,12 @@ function actionBar() {
     : `<div class="bar"><span class="msg">Tap a player on the field, then a bench player.</span></div>`;
   const name = esc(g.names[sel] || '');
   const on = g.onField.includes(sel);
-  return `<div class="bar"><span class="msg">${on ? `Subbing off <b>${name}</b> — tap who comes on` : `<b>${name}</b> — tap who goes off`}</span>
+  const isOut = g.out.includes(sel);
+  if (injuredNext) return `<div class="bar"><span class="msg">🩹 <b>${esc(g.names[injuredNext.id])}</b> injured — tap who replaces them</span>
+    <button class="btn sm sec" data-act="clear">✕</button></div>`;
+  return `<div class="bar"><span class="msg">${isOut ? `<b>${name}</b> — injured` : on ? `Subbing off <b>${name}</b> — tap who comes on` : `<b>${name}</b> — tap who goes off`}</span>
     ${on && g.gk !== sel ? '<button class="btn sm sec" data-act="gk">Make GK</button>' : ''}
-    ${!on ? `<button class="btn sm sec" data-act="out">${g.out.includes(sel) ? 'Back in' : 'Mark out'}</button>` : ''}
+    ${isOut ? '<button class="btn sm sec" data-act="healed">Back in</button>' : '<button class="btn sm sec" data-act="injured">🩹 Injured</button>'}
     <button class="btn sm sec" data-act="clear">✕</button></div>`;
 }
 
@@ -309,6 +352,8 @@ function historyView() {
       <span style="color:var(--mute)">${open ? '▾' : '▸'} ${fmt(g.accum)}</span></div>
       ${open ? `<table style="margin-top:6px"><tr><th>Player</th><th>Played</th><th>GK</th></tr>
         ${pr.map(id => `<tr><td>${esc(g.names[id] || '?')}</td><td>${fmt(secs(g, id, g.accum))}</td><td>${secs(g, id, g.accum, true) ? fmt(secs(g, id, g.accum, true)) : '–'}</td></tr>`).join('')}</table>
+        <div class="two" style="margin-top:10px"><button class="btn sm" data-act="share" data-id="${g.id}">Share summary</button>
+        <button class="btn sm sec" data-act="csv" data-id="${g.id}">Export CSV</button></div>
         <button class="x" data-act="delGame" data-id="${g.id}">Delete game</button>` : ''}</div>`;
   }).join('')}`;
 }
@@ -324,8 +369,10 @@ function tick() {
   document.querySelectorAll('[data-tt]').forEach(el => el.textContent = fmt(secs(g, el.dataset.tt, t)));
   document.querySelectorAll('[data-gk]').forEach(el => el.textContent = fmt(secs(g, el.dataset.gk, t, true)));
   document.querySelectorAll('[data-st]').forEach(el => el.textContent = fmt(stintOf(g, el.dataset.st, t)));
+  document.querySelectorAll('[data-os]').forEach(el => { const i = openInjury(g, el.dataset.os); el.textContent = fmt(t - (i ? i.at : t)); });
   document.querySelectorAll('[data-df]').forEach(el => {
-    const d = Math.round((secs(g, el.dataset.df, t) - avg) / 60);
+    const arr = (g.arrived && g.arrived[el.dataset.df]) || 0;
+    const d = Math.round((secs(g, el.dataset.df, t) - (t > 0 ? avg * (t - arr) / t : 0)) / 60);
     el.textContent = g.out.includes(el.dataset.df) ? '' : (d > 0 ? '+' + d : d < 0 ? '−' + Math.abs(d) : '0') + 'm';
     el.className = 'diff ' + (d <= -2 ? 'lo' : d >= 2 ? 'hi' : 'ok');
   });
@@ -347,6 +394,49 @@ async function wake() {
 function toast(msg) {
   const el = document.createElement('div'); el.className = 'toast'; el.textContent = msg;
   document.body.appendChild(el); setTimeout(() => el.remove(), 1800);
+}
+
+/* ---------- export ---------- */
+function gameFacts(g, id) {
+  const total = secs(g, id, g.accum), gk = secs(g, id, g.accum, true);
+  const inj = (g.injuries || []).filter(i => i.id === id);
+  return { name: g.names[id] || '?', total, gk, pct: g.accum ? Math.round(total / g.accum * 100) : 0,
+    arrived: g.arrived && g.arrived[id], inj };
+}
+function summaryText(g) {
+  const d = new Date(g.date).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  const rows = g.players.map(id => gameFacts(g, id)).sort((a, b) => b.total - a.total);
+  const lines = rows.map(r => {
+    const x = [];
+    if (r.gk) x.push('GK ' + fmt(r.gk));
+    if (r.arrived) x.push('arrived ' + fmt(r.arrived));
+    r.inj.forEach(i => x.push('injured ' + fmt(i.at) + (i.note ? ' (' + i.note + ')' : '')));
+    return `${r.name}: ${fmt(r.total)} (${r.pct}%)${x.length ? ' — ' + x.join(', ') : ''}`;
+  });
+  return `Playing time — ${d}${g.opp ? ' vs ' + g.opp : ''}\nGame time: ${fmt(g.accum)}\n\n${lines.join('\n')}`;
+}
+async function shareText(title, text) {
+  try { if (navigator.share) { await navigator.share({ title, text }); return; } } catch (e) { if (e.name === 'AbortError') return; }
+  try { await navigator.clipboard.writeText(text); toast('Summary copied'); }
+  catch (e) { prompt('Copy this summary:', text); }
+}
+const shareSummary = g => g && shareText('Playing time summary', summaryText(g));
+function csvText(g) {
+  const q = v => '"' + String(v).replace(/"/g, '""') + '"';
+  const head = ['Player', 'Played (mm:ss)', 'Played (%)', 'Goalie (mm:ss)', 'Arrived', 'Injury'];
+  const rows = g.players.map(id => gameFacts(g, id)).sort((a, b) => b.total - a.total).map(r =>
+    [r.name, fmt(r.total), r.pct, r.gk ? fmt(r.gk) : '', r.arrived ? fmt(r.arrived) : '',
+     r.inj.map(i => fmt(i.at) + (i.note ? ' ' + i.note : '')).join('; ')].map(q).join(','));
+  return [head.map(q).join(','), ...rows].join('\n');
+}
+async function shareCsv(g) {
+  if (!g) return;
+  const file = new File([csvText(g)], 'playing-time-' + new Date(g.date).toISOString().slice(0, 10) + '.csv', { type: 'text/csv' });
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return; }
+  } catch (e) { if (e.name === 'AbortError') return; }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(file); a.download = file.name;
+  document.body.appendChild(a); a.click(); a.remove();
 }
 
 /* ---------- events ---------- */
@@ -378,11 +468,24 @@ document.addEventListener('click', e => {
     case 'endGame': if (confirm('End the game and save it?')) endHalf(); break;
     case 'snooze': resetSubTimer(); break;
     case 'undo': doUndo(); break;
-    case 'clear': sel = null; render(); break;
+    case 'clear': sel = null; injuredNext = null; render(); break;
     case 'gk': makeGk(sel); break;
-    case 'out': toggleOut(sel); break;
+    case 'injured': {
+      const note = prompt('Injury note (optional, e.g. "ankle")', '');
+      if (note === null) break;
+      if (g.onField.includes(sel)) { injuredNext = { id: sel, note }; render(); }
+      else { markInjured(sel, note); sel = null; save(); render(); }
+      break; }
+    case 'healed': returnFromInjury(sel); break;
+    case 'lateOpen': lateOpen = true; render(); break;
+    case 'lateClose': lateOpen = false; render(); break;
+    case 'lateAdd': addLate(id); break;
+    case 'lateNew': addLate(null, $('#lateName').value); break;
+    case 'share': shareSummary(S.games.find(x => x.id === id)); break;
+    case 'csv': shareCsv(S.games.find(x => x.id === id)); break;
     case 'pick': {
       if (!sel) { sel = id; render(); break; }
+      if (injuredNext && sel !== id) { if (!g.onField.includes(id) && !g.out.includes(id)) swap(injuredNext.id, id); break; }
       if (sel === id) { sel = null; render(); break; }
       const a = g.onField.includes(sel), b = g.onField.includes(id);
       if (a !== b && !g.out.includes(id) && !g.out.includes(sel)) swap(a ? sel : id, a ? id : sel);
