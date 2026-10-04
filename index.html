@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Subs">
+<meta name="theme-color" content="#16803d">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>Sideline Subs</title>
+<style>
+:root{
+  --bg:#f4f6f5; --card:#fff; --ink:#14201a; --mute:#66756c; --line:#dfe6e2;
+  --green:#16803d; --green-d:#0f5f2c; --amber:#b45309; --amber-bg:#fef3c7;
+  --red:#b91c1c; --blue:#1d4ed8; --sel:#dbeafe; --gk:#7c3aed;
+}
+@media (prefers-color-scheme: dark){
+  :root{--bg:#0e1512; --card:#18221d; --ink:#e8f0eb; --mute:#8fa096; --line:#2a372f;
+    --green:#22a853; --green-d:#16803d; --amber:#fbbf24; --amber-bg:#3a2e0c; --sel:#1e3a6e; --gk:#a78bfa;}
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);
+  font:16px/1.3 -apple-system,BlinkMacSystemFont,"SF Pro Text",Helvetica,Arial,sans-serif;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation}
+body{padding:env(safe-area-inset-top) 0 calc(64px + env(safe-area-inset-bottom))}
+button{font:inherit;color:inherit;border:0;background:none;touch-action:manipulation}
+input{font:inherit;font-size:16px;color:var(--ink);-webkit-user-select:text;user-select:text}
+main{max-width:560px;margin:0 auto;padding:10px 12px}
+h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);margin:16px 4px 6px;display:flex;justify-content:space-between}
+.btn{background:var(--green);color:#fff;font-weight:700;border-radius:12px;padding:14px 16px;min-height:50px}
+.btn:active{background:var(--green-d)}
+.btn.sec{background:var(--card);color:var(--ink);border:1px solid var(--line)}
+.btn.warn{background:var(--red)}
+.btn.sm{min-height:40px;padding:8px 12px;font-size:15px}
+.btn[disabled]{opacity:.4}
+.row{display:flex;align-items:center;gap:10px;background:var(--card);border:2px solid transparent;border-radius:12px;
+  padding:8px 12px;min-height:58px;margin-bottom:6px;box-shadow:0 1px 0 var(--line)}
+.row.sel{border-color:var(--blue);background:var(--sel)}
+.row.out{opacity:.5}
+.name{flex:1;font-size:18px;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sub{font-size:12px;color:var(--mute);font-weight:500}
+.num{font-variant-numeric:tabular-nums;text-align:right;line-height:1.15}
+.num b{font-size:18px;display:block}
+.tag{font-size:11px;font-weight:800;color:#fff;background:var(--gk);border-radius:6px;padding:2px 6px;margin-left:6px;vertical-align:middle}
+.diff{font-size:12px;font-weight:700;border-radius:8px;padding:2px 6px;min-width:46px;text-align:center}
+.diff.lo{background:var(--amber-bg);color:var(--amber)}
+.diff.hi{background:#dcfce7;color:#166534}
+.diff.ok{background:var(--line);color:var(--mute)}
+@media (prefers-color-scheme: dark){.diff.hi{background:#12361f;color:#86efac}}
+.clock{position:sticky;top:calc(env(safe-area-inset-top) + 4px);z-index:4;box-shadow:0 2px 8px rgba(0,0,0,.25);background:var(--green);color:#fff;border-radius:16px;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.clock .big{font-size:46px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1}
+.clock .lbl{font-size:13px;opacity:.9;font-weight:600}
+.clock .btn{background:rgba(255,255,255,.2)}
+.banner{background:var(--amber-bg);color:var(--amber);border-radius:12px;padding:12px;font-weight:700;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.bar{position:fixed;left:0;right:0;bottom:calc(56px + env(safe-area-inset-bottom));padding:8px 12px;background:var(--card);
+  border-top:1px solid var(--line);display:flex;gap:8px;align-items:center;z-index:5}
+.bar .msg{flex:1;font-size:14px;font-weight:600}
+nav{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);display:flex;
+  padding-bottom:env(safe-area-inset-bottom);z-index:6}
+nav button{flex:1;min-height:56px;font-size:13px;font-weight:700;color:var(--mute)}
+nav button.on{color:var(--green)}
+nav button span{display:block;font-size:20px}
+.seg{display:flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{padding:10px 11px;font-size:14px;font-weight:700;color:var(--mute);min-height:44px}
+.seg button.on{background:var(--green);color:#fff}
+.seg button.on.o{background:var(--mute)}
+.gkb{min-height:44px;padding:0 10px;border:1px solid var(--line);border-radius:10px;font-weight:800;font-size:14px;color:var(--mute)}
+.gkb.on{background:var(--gk);color:#fff;border-color:var(--gk)}
+.field{display:block;width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--card);margin-bottom:8px}
+.two{display:flex;gap:8px}.two>*{flex:1}
+label.l{font-size:12px;color:var(--mute);font-weight:700;margin:0 2px 2px;display:block}
+.card{background:var(--card);border-radius:12px;padding:12px;margin-bottom:8px;box-shadow:0 1px 0 var(--line)}
+.empty{color:var(--mute);text-align:center;padding:30px 10px}
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}
+td,th{padding:7px 4px;border-bottom:1px solid var(--line);text-align:right;font-size:15px}
+td:first-child,th:first-child{text-align:left;font-weight:600}
+th{font-size:12px;color:var(--mute);text-transform:uppercase}
+.toast{position:fixed;left:50%;top:calc(12px + env(safe-area-inset-top));transform:translateX(-50%);background:#111;color:#fff;
+  padding:10px 16px;border-radius:20px;font-weight:600;z-index:20;font-size:14px}
+.x{color:var(--red);font-weight:700;padding:10px}
+</style>
+</head>
+<body>
+<main id="app"></main>
+<div id="barSlot"></div>
+<nav id="nav"></nav>
+
+<script>
+'use strict';
+const KEY = 'sideline_subs_v1';
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => Math.random().toString(36).slice(2, 9);
+
+/* ---------- state ---------- */
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem(KEY));
+    if (s && s.roster) return s;
+  } catch (e) {}
+  return { roster: [], games: [], current: null, settings: { halfMin: 25, subMin: 8, field: 9 } };
+}
+let S = load();
+function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+
+let tab = 'game';
+let sel = null;            // selected player id during a game
+let undo = [];             // snapshots for current game
+let openId = null;         // expanded game in history
+let setup = newSetup();
+function newSetup() { return { opp: '', halfMin: S.settings.halfMin, subMin: S.settings.subMin, st: {}, gk: null }; }
+
+/* ---------- time model ----------
+   Game clock = g.accum + time since g.startedAt (null when paused/halftime).
+   Each player has intervals {s,e,gk} in game-clock seconds; an interval is
+   only open while the clock runs, so totals are always exact, even if the
+   phone locks or the app is suspended. */
+const clock = g => g.accum + (g.startedAt ? (Date.now() - g.startedAt) / 1000 : 0);
+const running = g => !!g.startedAt;
+const ivs = (g, id) => g.ivs[id] || (g.ivs[id] = []);
+function openIv(g, id, t, gk) { ivs(g, id).push({ s: t, e: null, gk: !!gk }); }
+function closeIv(g, id, t) { const l = ivs(g, id); const iv = l[l.length - 1]; if (iv && iv.e == null) iv.e = t; }
+function secs(g, id, t, onlyGk) {
+  return (g.ivs[id] || []).reduce((a, iv) => a + (onlyGk && !iv.gk ? 0 : Math.max(0, (iv.e == null ? t : iv.e) - iv.s)), 0);
+}
+function stintOf(g, id, t) {
+  const l = g.ivs[id] || [];
+  const last = l[l.length - 1];
+  if (!last) return t;
+  return last.e == null ? t - last.s : t - last.e;
+}
+const fmt = s => { s = Math.max(0, Math.floor(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+const bench = g => g.players.filter(id => !g.onField.includes(id) && !g.out.includes(id));
+const avail = g => g.players.filter(id => !g.out.includes(id));
+function avgSecs(g, t) { const a = avail(g); return a.length ? a.reduce((x, id) => x + secs(g, id, t), 0) / a.length : 0; }
+
+function snap(g) {
+  undo.push(JSON.stringify({ onField: g.onField, gk: g.gk, ivs: g.ivs, out: g.out, lastSubAt: g.lastSubAt }));
+  if (undo.length > 15) undo.shift();
+}
+function doUndo() {
+  const g = S.current; if (!g || !undo.length) return;
+  Object.assign(g, JSON.parse(undo.pop())); sel = null; save(); render();
+}
+
+/* ---------- game actions ---------- */
+function kickoff() {
+  const ids = S.roster.filter(p => (setup.st[p.id] || 'bench') !== 'out').map(p => p.id);
+  const field = ids.filter(id => setup.st[id] === 'field');
+  S.settings.halfMin = +setup.halfMin || 25; S.settings.subMin = +setup.subMin || 8;
+  const names = {}; S.roster.forEach(p => names[p.id] = p.name);
+  const g = { id: uid(), date: Date.now(), opp: setup.opp.trim(), halfMin: S.settings.halfMin, subMin: S.settings.subMin,
+    names, players: ids, onField: field, gk: setup.gk, out: [], ivs: {}, phase: 'h1',
+    accum: 0, startedAt: Date.now(), h1End: null, lastSubAt: 0 };
+  field.forEach(id => openIv(g, id, 0, id === g.gk));
+  S.current = g; undo = []; sel = null; setup = newSetup(); save(); render();
+}
+function endHalf() {
+  const g = S.current, t = clock(g);
+  g.onField.forEach(id => closeIv(g, id, t));
+  g.accum = t; g.startedAt = null;
+  if (g.phase === 'h1') { g.phase = 'ht'; g.h1End = t; } else { g.phase = 'done'; finishGame(); return; }
+  save(); render();
+}
+function startH2() {
+  const g = S.current;
+  g.phase = 'h2'; g.startedAt = Date.now(); g.lastSubAt = g.accum;
+  g.onField.forEach(id => openIv(g, id, g.accum, id === g.gk));
+  save(); render();
+}
+function finishGame() {
+  const g = S.current;
+  S.games.unshift(g); S.current = null; sel = null; undo = []; openId = g.id; tab = 'history';
+  save(); render();
+}
+function swap(outId, inId) {
+  const g = S.current; snap(g);
+  const t = clock(g), idx = g.onField.indexOf(outId), wasGk = g.gk === outId;
+  if (running(g)) { closeIv(g, outId, t); openIv(g, inId, t, wasGk); g.lastSubAt = t; }
+  g.onField[idx] = inId; if (wasGk) g.gk = inId;
+  sel = null; save(); render();
+}
+function makeGk(id) {
+  const g = S.current; snap(g);
+  const t = clock(g), old = g.gk; g.gk = id;
+  if (running(g)) [old, id].forEach(p => { if (p) { closeIv(g, p, t); openIv(g, p, t, p === id); } });
+  sel = null; save(); render();
+}
+function toggleOut(id) {
+  const g = S.current; snap(g);
+  const i = g.out.indexOf(id); if (i >= 0) g.out.splice(i, 1); else g.out.push(id);
+  sel = null; save(); render();
+}
+function resetSubTimer() { const g = S.current; g.lastSubAt = clock(g); save(); render(); }
+
+/* ---------- rendering ---------- */
+function render() {
+  $('#nav').innerHTML = [['game', '⚽', S.current ? 'Game' : 'New Game'], ['roster', '👥', 'Roster'], ['history', '📊', 'History']]
+    .map(([k, i, l]) => `<button data-act="tab" data-k="${k}" class="${tab === k ? 'on' : ''}"><span>${i}</span>${l}</button>`).join('');
+  $('#app').innerHTML = tab === 'roster' ? rosterView() : tab === 'history' ? historyView() : S.current ? gameView() : setupView();
+  $('#barSlot').innerHTML = (tab === 'game' && S.current) ? actionBar() : '';
+  tick();
+  wake();
+}
+
+function rosterView() {
+  return `<h2>Roster <span>${S.roster.length} players</span></h2>
+  <div class="two"><input id="newName" class="field" placeholder="Player name" autocapitalize="words" autocomplete="off" style="flex:3">
+  <button class="btn" data-act="addPlayer" style="flex:1;margin-bottom:8px">Add</button></div>
+  ${S.roster.map(p => `<div class="row"><div class="name">${esc(p.name)}</div><button class="x" data-act="delPlayer" data-id="${p.id}">Remove</button></div>`).join('')
+    || '<div class="empty">Add your players to get started.</div>'}`;
+}
+
+function setupView() {
+  if (!S.roster.length) return `<div class="empty">Add your players on the Roster tab first.</div>`;
+  const F = S.settings.field;
+  const fieldN = S.roster.filter(p => setup.st[p.id] === 'field').length;
+  const ok = fieldN >= 1 && setup.gk && setup.st[setup.gk] === 'field';
+  return `<h2>New game</h2>
+  <input id="opp" class="field" placeholder="Opponent (optional)" value="${esc(setup.opp)}" autocomplete="off">
+  <div class="two"><div><label class="l">Half length (min)</label><input id="halfMin" class="field" type="number" inputmode="numeric" value="${setup.halfMin}"></div>
+  <div><label class="l">Sub reminder every (min)</label><input id="subMin" class="field" type="number" inputmode="numeric" value="${setup.subMin}"></div></div>
+  <h2>Lineup <span>${fieldN}/${F} on field</span></h2>
+  ${S.roster.map(p => { const s = setup.st[p.id] || 'bench';
+    return `<div class="row ${s === 'out' ? 'out' : ''}"><div class="name">${esc(p.name)}</div>
+    ${s === 'field' ? `<button class="gkb ${setup.gk === p.id ? 'on' : ''}" data-act="setupGk" data-id="${p.id}">GK</button>` : ''}
+    <div class="seg">
+      <button class="o ${s === 'out' ? 'on' : ''}" data-act="setupSt" data-id="${p.id}" data-s="out">Out</button>
+      <button class="${s === 'bench' ? 'on' : ''}" data-act="setupSt" data-id="${p.id}" data-s="bench">Bench</button>
+      <button class="${s === 'field' ? 'on' : ''}" data-act="setupSt" data-id="${p.id}" data-s="field">Field</button>
+    </div></div>`; }).join('')}
+  <button class="btn" style="width:100%;margin-top:10px" data-act="kickoff" ${ok ? '' : 'disabled'}>${ok ? 'Kick off ⚽' : 'Pick starters and a goalie'}</button>`;
+}
+
+function playerRow(g, id, onField, t) {
+  const isOut = g.out.includes(id);
+  const state = isOut ? 'Out (injured / unavailable)'
+    : `${onField ? 'on' : 'off'} for <span data-st="${id}"></span>`;
+  const gkSeen = (g.ivs[id] || []).some(iv => iv.gk);
+  return `<div class="row ${sel === id ? 'sel' : ''} ${isOut ? 'out' : ''}" data-act="pick" data-id="${id}">
+    <div class="name">${esc(g.names[id] || '?')}${g.gk === id && onField ? '<span class="tag">GK</span>' : ''}
+      <div class="sub">${state}</div></div>
+    <span class="diff" data-df="${id}"></span>
+    <div class="num"><b data-tt="${id}"></b><span class="sub">${gkSeen ? `GK <span data-gk="${id}"></span>` : 'played'}</span></div>
+  </div>`;
+}
+
+function gameView() {
+  const g = S.current, t = clock(g);
+  const b = bench(g).sort((x, y) => secs(g, x, t) - secs(g, y, t));
+  const o = g.out;
+  const label = { h1: '1st half', ht: 'Halftime', h2: '2nd half' }[g.phase];
+  const half = g.phase === 'h2' ? t - g.h1End : t;
+  return `<div class="clock"><div><div class="lbl">${label}${g.opp ? ' · vs ' + esc(g.opp) : ''}</div>
+    <div class="big" id="clk">${fmt(half)}</div><div class="lbl">of ${g.halfMin}:00</div></div>
+    ${g.phase === 'h1' ? '<button class="btn" data-act="endHalf">End 1st half</button>'
+      : g.phase === 'ht' ? '<button class="btn" data-act="startH2" style="background:#fff;color:#16803d">Start 2nd half</button>'
+      : '<button class="btn" data-act="endGame">End game</button>'}</div>
+  <div id="dueSlot">${dueBanner(g, t)}</div>
+  <h2>On field <span>${g.onField.length}</span></h2>
+  ${g.onField.map(id => playerRow(g, id, true, t)).join('')}
+  <h2>Bench <span>${b.length} · least time first</span></h2>
+  ${b.map(id => playerRow(g, id, false, t)).join('') || '<div class="empty">No one on the bench</div>'}
+  ${o.length ? `<h2>Out</h2>${o.map(id => playerRow(g, id, false, t)).join('')}` : ''}
+  <div style="height:70px"></div>`;
+}
+
+function isDue(g, t) { return running(g) && t - g.lastSubAt >= g.subMin * 60; }
+function dueBanner(g, t) {
+  return isDue(g, t) ? `<div class="banner"><span>⏱ Sub time — ${fmt(t - g.lastSubAt)} since last sub</span>
+    <button class="btn sm sec" data-act="snooze">Reset</button></div>` : '';
+}
+
+function actionBar() {
+  const g = S.current;
+  if (!sel) return undo.length ? `<div class="bar"><span class="msg">Tap a player on the field, then a bench player.</span>
+    <button class="btn sm sec" data-act="undo">Undo</button></div>`
+    : `<div class="bar"><span class="msg">Tap a player on the field, then a bench player.</span></div>`;
+  const name = esc(g.names[sel] || '');
+  const on = g.onField.includes(sel);
+  return `<div class="bar"><span class="msg">${on ? `Subbing off <b>${name}</b> — tap who comes on` : `<b>${name}</b> — tap who goes off`}</span>
+    ${on && g.gk !== sel ? '<button class="btn sm sec" data-act="gk">Make GK</button>' : ''}
+    ${!on ? `<button class="btn sm sec" data-act="out">${g.out.includes(sel) ? 'Back in' : 'Mark out'}</button>` : ''}
+    <button class="btn sm sec" data-act="clear">✕</button></div>`;
+}
+
+function historyView() {
+  const gs = S.games;
+  if (!gs.length) return `<div class="empty">Finished games will show up here.</div>`;
+  // season totals
+  const tot = {};
+  gs.forEach(g => g.players.forEach(id => {
+    const r = tot[id] || (tot[id] = { name: g.names[id] || '?', s: 0, gk: 0, n: 0 });
+    r.s += secs(g, id, g.accum); r.gk += secs(g, id, g.accum, true); r.n++;
+  }));
+  const rows = Object.values(tot).sort((a, b) => b.s - a.s);
+  return `<h2>Season totals <span>${gs.length} games</span></h2>
+  <div class="card"><table><tr><th>Player</th><th>GP</th><th>Total</th><th>Avg</th><th>GK</th></tr>
+  ${rows.map(r => `<tr><td>${esc(r.name)}</td><td>${r.n}</td><td>${Math.round(r.s / 60)}m</td><td>${Math.round(r.s / 60 / r.n)}m</td><td>${r.gk ? Math.round(r.gk / 60) + 'm' : '–'}</td></tr>`).join('')}</table></div>
+  <h2>Games</h2>
+  ${gs.map(g => {
+    const open = openId === g.id;
+    const pr = g.players.slice().sort((a, b) => secs(g, b, g.accum) - secs(g, a, g.accum));
+    return `<div class="card"><div data-act="openGame" data-id="${g.id}" style="display:flex;justify-content:space-between;font-weight:700">
+      <span>${new Date(g.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}${g.opp ? ' · vs ' + esc(g.opp) : ''}</span>
+      <span style="color:var(--mute)">${open ? '▾' : '▸'} ${fmt(g.accum)}</span></div>
+      ${open ? `<table style="margin-top:6px"><tr><th>Player</th><th>Played</th><th>GK</th></tr>
+        ${pr.map(id => `<tr><td>${esc(g.names[id] || '?')}</td><td>${fmt(secs(g, id, g.accum))}</td><td>${secs(g, id, g.accum, true) ? fmt(secs(g, id, g.accum, true)) : '–'}</td></tr>`).join('')}</table>
+        <button class="x" data-act="delGame" data-id="${g.id}">Delete game</button>` : ''}</div>`;
+  }).join('')}`;
+}
+
+/* ---------- live updates (no re-render, so taps are never lost) ---------- */
+let wasDue = null;
+function tick() {
+  const g = S.current;
+  if (tab !== 'game' || !g) { wasDue = null; return; }
+  const t = clock(g), avg = avgSecs(g, t);
+  const half = g.phase === 'h2' ? t - g.h1End : t;
+  const c = $('#clk'); if (c) c.textContent = fmt(half);
+  document.querySelectorAll('[data-tt]').forEach(el => el.textContent = fmt(secs(g, el.dataset.tt, t)));
+  document.querySelectorAll('[data-gk]').forEach(el => el.textContent = fmt(secs(g, el.dataset.gk, t, true)));
+  document.querySelectorAll('[data-st]').forEach(el => el.textContent = fmt(stintOf(g, el.dataset.st, t)));
+  document.querySelectorAll('[data-df]').forEach(el => {
+    const d = Math.round((secs(g, el.dataset.df, t) - avg) / 60);
+    el.textContent = g.out.includes(el.dataset.df) ? '' : (d > 0 ? '+' + d : d < 0 ? '−' + Math.abs(d) : '0') + 'm';
+    el.className = 'diff ' + (d <= -2 ? 'lo' : d >= 2 ? 'hi' : 'ok');
+  });
+  const due = isDue(g, t);
+  if (wasDue !== null && due !== wasDue) { const s = $('#dueSlot'); if (s) s.innerHTML = dueBanner(g, t); }
+  wasDue = due;
+}
+setInterval(tick, 500);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { tick(); wake(); } });
+
+let lock = null;
+async function wake() {
+  try {
+    if (S.current && running(S.current) && !document.hidden && (!lock || lock.released) && navigator.wakeLock)
+      lock = await navigator.wakeLock.request('screen');
+  } catch (e) {}
+}
+
+function toast(msg) {
+  const el = document.createElement('div'); el.className = 'toast'; el.textContent = msg;
+  document.body.appendChild(el); setTimeout(() => el.remove(), 1800);
+}
+
+/* ---------- events ---------- */
+document.addEventListener('input', e => {
+  if (e.target.id === 'opp') setup.opp = e.target.value;
+  if (e.target.id === 'halfMin') setup.halfMin = e.target.value;
+  if (e.target.id === 'subMin') setup.subMin = e.target.value;
+});
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-act]'); if (!el) return;
+  const id = el.dataset.id, g = S.current;
+  switch (el.dataset.act) {
+    case 'tab': tab = el.dataset.k; sel = null; render(); break;
+    case 'addPlayer': {
+      const inp = $('#newName'), n = inp.value.trim(); if (!n) return;
+      S.roster.push({ id: uid(), name: n }); save(); render(); $('#newName').focus(); break; }
+    case 'delPlayer':
+      if (confirm('Remove ' + S.roster.find(p => p.id === id).name + ' from the roster? Past games keep their stats.')) {
+        S.roster = S.roster.filter(p => p.id !== id); save(); render(); }
+      break;
+    case 'setupSt': {
+      if (el.dataset.s === 'field' && setup.st[id] !== 'field' &&
+          S.roster.filter(p => setup.st[p.id] === 'field').length >= S.settings.field) { toast('Field is full (' + S.settings.field + ')'); return; }
+      setup.st[id] = el.dataset.s; if (el.dataset.s !== 'field' && setup.gk === id) setup.gk = null; render(); break; }
+    case 'setupGk': setup.gk = id; render(); break;
+    case 'kickoff': kickoff(); break;
+    case 'endHalf': if (confirm('End the 1st half?')) endHalf(); break;
+    case 'startH2': startH2(); break;
+    case 'endGame': if (confirm('End the game and save it?')) endHalf(); break;
+    case 'snooze': resetSubTimer(); break;
+    case 'undo': doUndo(); break;
+    case 'clear': sel = null; render(); break;
+    case 'gk': makeGk(sel); break;
+    case 'out': toggleOut(sel); break;
+    case 'pick': {
+      if (!sel) { sel = id; render(); break; }
+      if (sel === id) { sel = null; render(); break; }
+      const a = g.onField.includes(sel), b = g.onField.includes(id);
+      if (a !== b && !g.out.includes(id) && !g.out.includes(sel)) swap(a ? sel : id, a ? id : sel);
+      else { sel = id; render(); }
+      break; }
+    case 'openGame': openId = openId === id ? null : id; render(); break;
+    case 'delGame': if (confirm('Delete this game?')) { S.games = S.games.filter(x => x.id !== id); save(); render(); } break;
+  }
+});
+
+render();
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>
