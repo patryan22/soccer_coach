@@ -6,6 +6,7 @@ Offline-capable mobile web app for tracking youth soccer playing time (9v9, two 
 - Tap a field player, then a bench player to sub; bench sorted by least time played
 - Sub-reminder banner at a set interval, undo, mark players out
 - Late arrivals, injury tracking (with notes), per-game history, season totals
+- Red-to-green playing-time dot beside each player
 - Share a game summary (text) or export CSV
 
 ## Use on iPhone

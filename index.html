@@ -47,6 +47,7 @@ h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute
 .tag{font-size:11px;font-weight:800;color:#fff;background:var(--gk);border-radius:6px;padding:2px 6px;margin-left:6px;vertical-align:middle}
 .diff{font-size:12px;font-weight:700;border-radius:8px;padding:2px 6px;min-width:46px;text-align:center}
 .diff:empty{display:none}
+.dot{display:inline-block;width:14px;height:14px;border-radius:50%;margin-right:8px;vertical-align:-1px;background:var(--line);box-shadow:inset 0 0 0 1px rgba(0,0,0,.15)}
 .diff.lo{background:var(--amber-bg);color:var(--amber)}
 .diff.hi{background:#dcfce7;color:#166534}
 .diff.ok{background:var(--line);color:var(--mute)}
@@ -270,7 +271,7 @@ function playerRow(g, id, onField, t) {
     : `${onField ? 'on' : 'off'} for <span data-st="${id}"></span>${late}`;
   const gkSeen = (g.ivs[id] || []).some(iv => iv.gk);
   return `<div class="row ${sel === id ? 'sel' : ''} ${isOut ? 'out' : ''}" data-act="pick" data-id="${id}">
-    <div class="name">${esc(g.names[id] || '?')}${g.gk === id && onField ? '<span class="tag">GK</span>' : ''}
+    <div class="name"><span class="dot" data-hm="${id}"></span>${esc(g.names[id] || '?')}${g.gk === id && onField ? '<span class="tag">GK</span>' : ''}
       <div class="sub">${state}</div></div>
     <span class="diff" data-df="${id}"></span>
     <div class="num"><b data-tt="${id}"></b><span class="sub">${gkSeen ? `GK <span data-gk="${id}"></span>` : 'played'}</span></div>
@@ -369,6 +370,14 @@ function tick() {
   document.querySelectorAll('[data-tt]').forEach(el => el.textContent = fmt(secs(g, el.dataset.tt, t)));
   document.querySelectorAll('[data-gk]').forEach(el => el.textContent = fmt(secs(g, el.dataset.gk, t, true)));
   document.querySelectorAll('[data-st]').forEach(el => el.textContent = fmt(stintOf(g, el.dataset.st, t)));
+  // heat dot: red = least playing time, green = most, relative to the rest of the team
+  const av = avail(g).map(id => secs(g, id, t)), hi = Math.max(...av), lo = Math.min(...av);
+  document.querySelectorAll('[data-hm]').forEach(el => {
+    const id = el.dataset.hm;
+    if (g.out.includes(id) || hi <= 0) { el.style.background = ''; return; }
+    const v = Math.min(1, Math.max(0, 0.5 + (secs(g, id, t) - avg) / Math.max(hi - lo, 180)));
+    el.style.background = `hsl(${Math.round(v * 120)} 75% 42%)`;
+  });
   document.querySelectorAll('[data-os]').forEach(el => { const i = openInjury(g, el.dataset.os); el.textContent = fmt(t - (i ? i.at : t)); });
   document.querySelectorAll('[data-df]').forEach(el => {
     const arr = (g.arrived && g.arrived[el.dataset.df]) || 0;
